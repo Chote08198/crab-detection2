@@ -12,9 +12,10 @@ else:
     pathlib.WindowsPath = pathlib.PosixPath
 
 # โหลดโมเดล AI
-from ultralytics import YOLO
+import torch
 
-model = YOLO('best.pt')
+# โหลดโมเดล YOLOv5 จาก PyTorch Hub แบบออฟไลน์/ออนไลน์ที่เสถียร
+model = torch.hub.load('ultralytics/yolov5:v7.0', 'custom', path='best.pt', force_reload=True)
 model.conf = 0.5  # ค่าความมั่นใจในการตรวจจับ (ปรับขึ้นลงได้ตามต้องการ)
 
 app = Flask(__name__)
