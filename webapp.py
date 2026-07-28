@@ -3,17 +3,17 @@ import cv2
 import numpy as np
 import pathlib
 import platform
-import yolov5
+import torch
 from flask import Flask, jsonify, request, render_template_string
 
-# จัดการ PosixPath สำหรับ Linux (Render)
+# จัดการ PosixPath สำหรับ Linux บน Render
 if platform.system() != 'Windows':
     pathlib.WindowsPath = pathlib.PosixPath
 
 app = Flask(__name__)
 
-# โหลดโมเดล YOLOv5 โดยตรงผ่านแพ็กเกจ yolov5
-model = yolov5.load('best.pt')
+# โหลดโมเดล YOLOv5 ผ่าน PyTorch Hub (ใช้ github ultralytics/yolov5 โดยตรง)
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt', force_reload=False, trust_repo=True)
 model.conf = 0.5  # ตั้งค่า Threshold ความมั่นใจ
 
 HTML_TEMPLATE = """
@@ -154,7 +154,7 @@ def detect():
         np_arr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        # ทำนายผลด้วย YOLOv5
+        # ประมวลผลด้วยโมเดล YOLOv5
         results = model(img)
         df = results.pandas().xyxy[0]
         

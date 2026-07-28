@@ -1,5 +1,10 @@
 flask
 opencv-python-headless
-setuptools
-yolov5
+torch
+torchvision
+pandas
+requests
+PyYAML
+tqdm
+seaborn
 gunicorn
