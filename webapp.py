@@ -5,6 +5,7 @@ import torch
 import pathlib
 import platform
 from flask import Flask, jsonify, request, render_template_string
+from ultralytics import YOLO
 
 # จัดการ PosixPath สำหรับ Linux (Render)
 if platform.system() != 'Windows':
@@ -12,9 +13,8 @@ if platform.system() != 'Windows':
 
 app = Flask(__name__)
 
-# โหลดโมเดล YOLOv5 ผ่าน PyTorch Hub
-model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt', force_reload=False)
-model.conf = 0.5  # ปรับค่า confidence threshold
+# โหลดโมเดลด้วย ultralytics โดยตรง (รองรับทั้ง v5 และ v8)
+model = YOLO('best.pt')
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -154,22 +154,23 @@ def detect():
         np_arr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        # ทำนายผลด้วย YOLOv5
-        results = model(img)
-        
-        # ดึงค่าพิกัดจาก YOLOv5
-        df = results.pandas().xyxy[0]
+        # ทำนายผล
+        results = model(img, conf=0.5)
         
         boxes = []
-        for _, row in df.iterrows():
-            boxes.append({
-                'x1': int(row['xmin']),
-                'y1': int(row['ymin']),
-                'x2': int(row['xmax']),
-                'y2': int(row['ymax']),
-                'confidence': float(row['confidence']),
-                'label': str(row['name'])
-            })
+        for result in results:
+            for box in result.boxes:
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                conf = float(box.conf[0])
+                cls = int(box.cls[0])
+                label = model.names[cls]
+                
+                boxes.append({
+                    'x1': int(x1), 'y1': int(y1),
+                    'x2': int(x2), 'y2': int(y2),
+                    'confidence': conf,
+                    'label': label
+                })
 
         return jsonify({'boxes': boxes})
     except Exception as e:
