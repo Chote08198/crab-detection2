@@ -8,9 +8,9 @@ if platform.system() == "Windows":
   pathlib.PosixPath = pathlib.WindowsPath
 
 # โหลดโมเดล AI
-model = torch.hub.load(
-    "ultralytics/yolov5", "custom", path="best.pt", trust_repo=True
-)
+from ultralytics import YOLO
+
+model = YOLO('best.pt')
 model.conf = 0.5  # ค่าความมั่นใจในการตรวจจับ (ปรับขึ้นลงได้ตามต้องการ)
 
 app = Flask(__name__)
