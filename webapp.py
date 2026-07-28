@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import pathlib
 import platform
+import sys
 import torch
 from flask import Flask, jsonify, request, render_template_string
 
@@ -10,9 +11,12 @@ from flask import Flask, jsonify, request, render_template_string
 if platform.system() != 'Windows':
     pathlib.WindowsPath = pathlib.PosixPath
 
+# ชี้ Path ให้ Python รู้จักโฟลเดอร์ปัจจุบันสำหรับ YOLOv5 modules (models, utils)
+sys.path.insert(0, '.')
+
 app = Flask(__name__)
 
-# แก้ไขจาก 'ultralytics/yolov5' เป็น '.' และใส่ source='local'
+# โหลดโมเดล YOLOv5 จากโฟลเดอร์ปัจจุบัน
 model = torch.hub.load('.', 'custom', path='best.pt', source='local')
 model.conf = 0.5  # ตั้งค่า Threshold ความมั่นใจ
 
@@ -154,7 +158,6 @@ def detect():
         np_arr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        # ประมวลผลด้วยโมเดล YOLOv5
         results = model(img)
         df = results.pandas().xyxy[0]
         
