@@ -1,11 +1,4 @@
-Flask
+flask
 opencv-python-headless
-torch==2.2.2
-torchvision
-ultralytics==8.0.227
-numpy<2.0.0
+yolov5
 gunicorn
-ipython
-pandas
-seaborn
-thop
