@@ -3,7 +3,6 @@ opencv-python-headless
 torch
 torchvision
 pandas
-requests
 PyYAML
 tqdm
 seaborn

@@ -12,8 +12,8 @@ if platform.system() != 'Windows':
 
 app = Flask(__name__)
 
-# โหลดโมเดล YOLOv5 ผ่าน PyTorch Hub (ใช้ github ultralytics/yolov5 โดยตรง)
-model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt', force_reload=False, trust_repo=True)
+# แก้ไขจาก 'ultralytics/yolov5' เป็น '.' และใส่ source='local'
+model = torch.hub.load('.', 'custom', path='best.pt', source='local')
 model.conf = 0.5  # ตั้งค่า Threshold ความมั่นใจ
 
 HTML_TEMPLATE = """
