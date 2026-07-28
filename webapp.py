@@ -4,8 +4,12 @@ import cv2
 from flask import Flask, Response, render_template_string
 import torch
 
+import sys
+
 if platform.system() == "Windows":
-  pathlib.PosixPath = pathlib.WindowsPath
+    pathlib.PosixPath = pathlib.WindowsPath
+else:
+    pathlib.WindowsPath = pathlib.PosixPath
 
 # โหลดโมเดล AI
 from ultralytics import YOLO
