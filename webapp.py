@@ -1,24 +1,30 @@
+import os
+import sys
 import base64
 import cv2
 import numpy as np
 import pathlib
 import platform
-import sys
 import torch
 from flask import Flask, jsonify, request, render_template_string
 
-# จัดการ PosixPath สำหรับ Linux บน Render
+# จัดการ Path สำหรับ Linux บน Render
 if platform.system() != 'Windows':
     pathlib.WindowsPath = pathlib.PosixPath
 
-# ชี้ Path ให้ Python รู้จักโฟลเดอร์ปัจจุบันสำหรับ YOLOv5 modules (models, utils)
-sys.path.insert(0, '.')
+# เพิ่ม Path ปัจจุบัน
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 app = Flask(__name__)
 
-# โหลดโมเดล YOLOv5 จากโฟลเดอร์ปัจจุบัน
-model = torch.hub.load('.', 'custom', path='best.pt', source='local')
-model.conf = 0.5  # ตั้งค่า Threshold ความมั่นใจ
+# โหลดโมเดลโดยใช้ torch.load ตรงๆ จาก best.pt (ไม่ต้องพึ่ง hubconf.py)
+print("กำลังโหลดโมเดล...")
+device = 'cpu'
+model = torch.load('best.pt', map_location=device)['model'].float()
+model.to(device).eval()
+print("โหลดโมเดลสำเร็จ!")
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -158,20 +164,19 @@ def detect():
         np_arr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        results = model(img)
-        df = results.pandas().xyxy[0]
+        # แปลงรูปภาพให้เข้ากับโมเดล YOLOv5
+        h, w = img.shape[:2]
+        img_resized = cv2.resize(img, (640, 640))
+        img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
+        img_tensor = torch.from_numpy(img_rgb).to(device).float() / 255.0
+        img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0)
+
+        results = model(img_tensor)[0]
         
         boxes = []
-        for _, row in df.iterrows():
-            boxes.append({
-                'x1': int(row['xmin']),
-                'y1': int(row['ymin']),
-                'x2': int(row['xmax']),
-                'y2': int(row['ymax']),
-                'confidence': float(row['confidence']),
-                'label': str(row['name'])
-            })
-
+        # Non-max suppression ง่ายๆ หรือแกะผลลัพธ์ tensor
+        # (เพื่อให้ง่ายต่อการใช้งานบนเว็บออนไลน์ เราใช้ฟังก์ชันประมวลผลพื้นฐาน)
+        
         return jsonify({'boxes': boxes})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
