@@ -2,13 +2,19 @@ import base64
 import cv2
 import numpy as np
 import torch
+import pathlib
+import platform
 from flask import Flask, jsonify, request, render_template_string
-from ultralytics import YOLO
+
+# จัดการ PosixPath สำหรับ Linux (Render)
+if platform.system() != 'Windows':
+    pathlib.WindowsPath = pathlib.PosixPath
 
 app = Flask(__name__)
 
-# โหลดโมเดล YOLO
-model = YOLO('best.pt')
+# โหลดโมเดล YOLOv5 ผ่าน PyTorch Hub
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt', force_reload=False)
+model.conf = 0.5  # ปรับค่า confidence threshold
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -71,7 +77,6 @@ HTML_TEMPLATE = """
         const ctx = canvas.getContext('2d');
         const statusBox = document.getElementById('statusBox');
 
-        // ขอสิทธิ์เปิดกล้องจากมือถือ/คอมพิวเตอร์
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(stream => {
                 video.srcObject = stream;
@@ -97,7 +102,6 @@ HTML_TEMPLATE = """
                     tempCanvas.height = video.videoHeight;
                     tempCtx.drawImage(video, 0, 0);
 
-                    // แปลงภาพเฟรมวิดีโอเป็น Base64 ส่งไป AI บน Cloud
                     const imageData = tempCanvas.toDataURL('image/jpeg', 0.5);
 
                     fetch('/detect', {
@@ -107,7 +111,6 @@ HTML_TEMPLATE = """
                     })
                     .then(res => res.json())
                     .then(data => {
-                        // เคลียร์ Canvas เก่าแล้ววาดกรอบใหม่
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
                         
                         if (data.boxes && data.boxes.length > 0) {
@@ -130,7 +133,7 @@ HTML_TEMPLATE = """
                     })
                     .catch(err => console.error(err));
                 }
-            }, 300); // ประมวลผลทุกๆ 0.3 วินาที (Real-time)
+            }, 300);
         }
     </script>
 </body>
@@ -148,27 +151,25 @@ def detect():
         image_data = data['image'].split(',')[1]
         image_bytes = base64.b64decode(image_data)
         
-        # แปลงข้อมูลเป็น OpenCV Image
         np_arr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        # ทำการทำนายด้วย YOLO
+        # ทำนายผลด้วย YOLOv5
         results = model(img)
         
+        # ดึงค่าพิกัดจาก YOLOv5
+        df = results.pandas().xyxy[0]
+        
         boxes = []
-        for result in results:
-            for box in result.boxes:
-                x1, y1, x2, y2 = box.xyxy[0].tolist()
-                conf = float(box.conf[0])
-                cls = int(box.cls[0])
-                label = model.names[cls]
-                
-                boxes.append({
-                    'x1': int(x1), 'y1': int(y1),
-                    'x2': int(x2), 'y2': int(y2),
-                    'confidence': conf,
-                    'label': label
-                })
+        for _, row in df.iterrows():
+            boxes.append({
+                'x1': int(row['xmin']),
+                'y1': int(row['ymin']),
+                'x2': int(row['xmax']),
+                'y2': int(row['ymax']),
+                'confidence': float(row['confidence']),
+                'label': str(row['name'])
+            })
 
         return jsonify({'boxes': boxes})
     except Exception as e:
