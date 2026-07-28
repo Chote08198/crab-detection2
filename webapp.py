@@ -22,7 +22,7 @@ app = Flask(__name__)
 # โหลดโมเดลโดยใช้ torch.load ตรงๆ จาก best.pt (ไม่ต้องพึ่ง hubconf.py)
 print("กำลังโหลดโมเดล...")
 device = 'cpu'
-model = torch.load('best.pt', map_location=device)['model'].float()
+model = torch.load('best.pt', map_location=device, weights_only=False)['model'].float()
 model.to(device).eval()
 print("โหลดโมเดลสำเร็จ!")
 
