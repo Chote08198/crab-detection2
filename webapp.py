@@ -12,14 +12,14 @@ from flask import Flask, jsonify, request, render_template_string
 if platform.system() != 'Windows':
     pathlib.WindowsPath = pathlib.PosixPath
 
-# เพิ่ม Path ปัจจุบัน
+# เพิ่ม Path ของโปรเจกต์ให้ Python หาโฟลเดอร์ models และ utils เจอ
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 app = Flask(__name__)
 
-# โหลดโมเดลโดยใช้ torch.load ตรงๆ จาก best.pt (ไม่ต้องพึ่ง hubconf.py)
+# โหลดโมเดลพร้อมกำหนด weights_only=False
 print("กำลังโหลดโมเดล...")
 device = 'cpu'
 model = torch.load('best.pt', map_location=device, weights_only=False)['model'].float()
