@@ -1,5 +1,5 @@
 Flask
-opencv-python-headles
+opencv-python-headless
 torch==2.2.2
 torchvision
 ultralytics==8.0.227
