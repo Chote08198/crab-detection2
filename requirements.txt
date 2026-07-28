@@ -1,4 +1,5 @@
 flask
 opencv-python-headless
+setuptools
 yolov5
 gunicorn
