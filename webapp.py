@@ -165,7 +165,7 @@ def detect():
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
         # แปลงรูปภาพให้เข้ากับโมเดล YOLOv5
-        h, w = img.shape[:2]
+        h, w = img.shape[:2]  # เก็บความสูงและความกว้างของภาพต้นฉบับไว้ใช้แปลงสเกลบ็อกซ์
         img_resized = cv2.resize(img, (640, 640))
         img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
         img_tensor = torch.from_numpy(img_rgb).to(device).float() / 255.0
@@ -181,5 +181,9 @@ def detect():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # ดึงค่า PORT ที่ Render กำหนดให้อัตโนมัติ (ถ้าไม่มีให้ใช้ 5000 สำหรับรันในเครื่อง)
+    port = int(os.environ.get("PORT", 5000))
+    # กำหนดให้รันบน host='0.0.0.0' เพื่อให้ภายนอกเข้าถึงเว็บสตรีมได้
+    app.run(host='0.0.0.0', port=port)
