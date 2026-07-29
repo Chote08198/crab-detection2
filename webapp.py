@@ -1,189 +1,488 @@
-import os
-import sys
-import base64
 import cv2
-import numpy as np
-import pathlib
-import platform
+
 import torch
-from flask import Flask, jsonify, request, render_template_string
 
-# จัดการ Path สำหรับ Linux บน Render
-if platform.system() != 'Windows':
-    pathlib.WindowsPath = pathlib.PosixPath
+import pathlib
 
-# เพิ่ม Path ของโปรเจกต์ให้ Python หาโฟลเดอร์ models และ utils เจอ
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
+import numpy as np
+
+from flask import Flask, render_template_string, Response
+
+
+
+# 1. แก้ปัญหา PosixPath สำหรับโมเดลที่เทรนจาก Linux มาใช้บน Windows
+
+temp = pathlib.PosixPath
+
+pathlib.PosixPath = pathlib.WindowsPath
+
+
+
+# 2. โหลดโมเดล YOLOv5 จากโฟลเดอร์ในเครื่อง (แบบออฟไลน์)
+
+model = torch.hub.load('./', 'custom', path='best.pt', source='local')
+
+model.eval()
+
+
 
 app = Flask(__name__)
 
-# โหลดโมเดลพร้อมกำหนด weights_only=False
-print("กำลังโหลดโมเดล...")
-device = 'cpu'
-model = torch.load('best.pt', map_location=device, weights_only=False)['model'].float()
-model.to(device).eval()
-print("โหลดโมเดลสำเร็จ!")
+
+
+# 3. หน้าเว็บไซต์พร้อมระบบเสียงเตือนอัตโนมัติ
 
 HTML_TEMPLATE = """
+
 <!DOCTYPE html>
+
 <html lang="th">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบตรวจจับการลอกคราบปูนา Real-time</title>
+
+    <title>ระบบตรวจสอบปูนา Real-Time AI</title>
+
     <style>
+
         body {
+
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            text-align: center;
-            background-color: #121212;
-            color: #ffffff;
+
+            background: linear-gradient(135deg, #74b9ff, #a29bfe);
+
             margin: 0;
+
             padding: 20px;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            min-height: 100vh;
+
         }
-        h1 { color: #00d2ff; }
-        .status-box {
-            padding: 15px;
-            margin: 15px auto;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 10px;
-            background-color: #222;
-            font-size: 1.2rem;
-            font-weight: bold;
-            border: 1px solid #444;
+
+        h1 {
+
+            color: #ffffff;
+
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+
+            margin-bottom: 5px;
+
         }
+
+        p {
+
+            color: #f1f2f6;
+
+            font-weight: 500;
+
+        }
+
         .container {
-            position: relative;
-            display: inline-block;
-            max-width: 100%;
-        }
-        video, canvas {
+
+            display: flex;
+
+            flex-direction: row;
+
+            background: rgba(255, 255, 255, 0.95);
+
+            padding: 25px;
+
+            border-radius: 16px;
+
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+
+            max-width: 950px;
+
             width: 100%;
-            max-width: 640px;
-            border-radius: 10px;
-            border: 2px solid #00d2ff;
+
+            gap: 25px;
+
+            margin-top: 20px;
+
+            backdrop-filter: blur(10px);
+
         }
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
+
+        .video-box {
+
+            flex: 1.2;
+
+            text-align: center;
+
         }
+
+        .video-box h3 {
+
+            color: #2d3436;
+
+            margin-top: 0;
+
+        }
+
+        .video-box img {
+
+            width: 100%;
+
+            border-radius: 12px;
+
+            border: 4px solid #0984e3;
+
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+
+        }
+
+        .status-box {
+
+            flex: 1;
+
+            display: flex;
+
+            flex-direction: column;
+
+            justify-content: center;
+
+            align-items: center;
+
+            padding: 25px;
+
+            background: #dfe6e9;
+
+            border-radius: 12px;
+
+            border: 2px dashed #b2bec3;
+
+        }
+
+        .status-title {
+
+            font-size: 1.2rem;
+
+            color: #636e72;
+
+            font-weight: bold;
+
+            margin-bottom: 15px;
+
+            text-transform: uppercase;
+
+            letter-spacing: 1px;
+
+        }
+
+        #status-text {
+
+            font-size: 2rem;
+
+            font-weight: bold;
+
+            text-align: center;
+
+            padding: 20px;
+
+            border-radius: 12px;
+
+            width: 85%;
+
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+
+            transition: all 0.3s ease;
+
+        }
+
+        #count-text {
+
+            margin-top: 20px;
+
+            color: #2d3436;
+
+            font-size: 1.2rem;
+
+            font-weight: 600;
+
+            background: #ffffff;
+
+            padding: 8px 16px;
+
+            border-radius: 20px;
+
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+
+        }
+
+        .status-none { background-color: #f1f2f6; color: #747d8c; border: 2px solid #ced6e0; }
+
+        .status-normal { background-color: #2ed573; color: #ffffff; }
+
+        .status-molting { background-color: #ff4757; color: #ffffff; animation: pulse 0.8s infinite; }
+
+
+
+        @keyframes pulse {
+
+            0% { transform: scale(1); }
+
+            50% { transform: scale(1.05); }
+
+            100% { transform: scale(1); }
+
+        }
+
     </style>
+
 </head>
+
 <body>
-    <h1>🦀 ระบบตรวจจับการลอกคราบปูนา (Real-time)</h1>
-    <div class="status-box" id="statusBox">กำลังโหลดกล้อง...</div>
-    
+
+    <h1>🦀 ระบบตรวจจับปูนาอัจฉริยะ (AI Monitoring)</h1>
+
+    <p>ระบบประมวลผลและรายงานสถานะแบบเรียลไทม์ พร้อมระบบเสียงเตือน</p>
+
+
+
     <div class="container">
-        <video id="webcam" autoplay playsinline muted></video>
-        <canvas id="outputCanvas"></canvas>
+
+        <div class="video-box">
+
+            <h3>🎥 ภาพสดจากกล้อง</h3>
+
+            <img src="{{ url_for('video_feed') }}" alt="Video Stream">
+
+        </div>
+
+        <div class="status-box">
+
+            <div class="status-title">สถานะระบบ</div>
+
+            <div id="status-text" class="status-none">กำลังโหลด...</div>
+
+            <div id="count-text">จำนวนที่ตรวจพบ: 0 ตัว</div>
+
+        </div>
+
     </div>
 
+
+
     <script>
-        const video = document.getElementById('webcam');
-        const canvas = document.getElementById('outputCanvas');
-        const ctx = canvas.getContext('2d');
-        const statusBox = document.getElementById('statusBox');
 
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then(stream => {
-                video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    statusBox.innerText = "สถานะ: กำลังสแกน...";
-                    startDetection();
-                };
-            })
-            .catch(err => {
-                statusBox.innerText = "ไม่สามารถเปิดกล้องได้: " + err;
-                statusBox.style.color = "#ff4d4d";
-            });
+        // สร้างระบบเสียงเตือนด้วย Web Audio API (ไม่ต้องใช้ไฟล์เสียงภายนอก)
 
-        function startDetection() {
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
+        let audioCtx = null;
 
-            setInterval(() => {
-                if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                    tempCanvas.width = video.videoWidth;
-                    tempCanvas.height = video.videoHeight;
-                    tempCtx.drawImage(video, 0, 0);
 
-                    const imageData = tempCanvas.toDataURL('image/jpeg', 0.5);
 
-                    fetch('/detect', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ image: imageData })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        
-                        if (data.boxes && data.boxes.length > 0) {
-                            statusBox.innerText = `⚠️ พบปูนาลอกคราบ! (${data.boxes.length} ตัว)`;
-                            statusBox.style.color = "#ff4d4d";
+        function playAlarmSound() {
 
-                            data.boxes.forEach(box => {
-                                ctx.strokeStyle = "#00ff00";
-                                ctx.lineWidth = 3;
-                                ctx.strokeRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
-                                
-                                ctx.fillStyle = "#00ff00";
-                                ctx.font = "16px Arial";
-                                ctx.fillText(`${box.label} (${Math.round(box.confidence * 100)}%)`, box.x1, box.y1 > 20 ? box.y1 - 5 : 20);
-                            });
-                        } else {
-                            statusBox.innerText = "สถานะ: ปกติ (ไม่พบปูนาที่กำลังลอกคราบ)";
-                            statusBox.style.color = "#00d2ff";
-                        }
-                    })
-                    .catch(err => console.error(err));
-                }
-            }, 300);
+            if (!audioCtx) {
+
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            }
+
+            if (audioCtx.state === 'suspended') {
+
+                audioCtx.resume();
+
+            }
+
+
+
+            // สร้างเสียงปี๊บความถี่สูงดังชัดเจน
+
+            let osc = audioCtx.createOscillator();
+
+            let gainNode = audioCtx.createGain();
+
+
+
+            osc.type = 'square'; // เสียงแบบปี๊บแหลมดังฟังชัด
+
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime); // ความถี่เสียง
+
+
+
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+           
+
+            osc.connect(gainNode);
+
+            gainNode.connect(audioCtx.destination);
+
+
+
+            osc.start();
+
+            osc.stop(audioCtx.currentTime + 0.3); // ดังครั้งละ 0.3 วินาที
+
         }
+
+
+
+        // เช็คสถานะทุกๆ 1 วินาที
+
+        setInterval(function() {
+
+            fetch('/status')
+
+                .then(response => response.json())
+
+                .then(data => {
+
+                    const statusEl = document.getElementById('status-text');
+
+                    const countEl = document.getElementById('count-text');
+
+                   
+
+                    statusEl.innerText = data.text;
+
+                    countEl.innerText = "จำนวนที่ตรวจพบ: " + data.count + " ตัว";
+
+                    statusEl.className = "status-" + data.type;
+
+
+
+                    // ถ้าเจอสถานะลอกคราบ (2 ตัวขึ้นไป) ให้ส่งเสียงเตือนดังๆ
+
+                    if (data.type === 'molting') {
+
+                        playAlarmSound();
+
+                    }
+
+                });
+
+        }, 1000);
+
     </script>
+
 </body>
+
 </html>
+
 """
 
+
+
+latest_status = {"text": "ไม่เจอ", "count": 0, "type": "none"}
+
+
+
+def generate_frames():
+
+    global latest_status
+
+    cap = cv2.VideoCapture(0)
+
+   
+
+    while cap.isOpened():
+
+        success, frame = cap.read()
+
+        if not success:
+
+            break
+
+           
+
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        results = model(img_rgb)
+
+        df = results.pandas().xyxy[0]
+
+       
+
+        filtered_df = df[df['confidence'] > 0.4]
+
+        count = len(filtered_df)
+
+       
+
+        if count == 0:
+
+            latest_status = {"text": "ไม่เจอ", "count": 0, "type": "none"}
+
+        elif count == 1:
+
+            latest_status = {"text": "ปกติ", "count": 1, "type": "normal"}
+
+        else:
+
+            latest_status = {"text": "เจอปูนาลอกคราบ", "count": count, "type": "molting"}
+
+
+
+        for i, row in filtered_df.iterrows():
+
+            xmin, ymin, xmax, ymax = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+
+            name = row['name']
+
+            conf = row['confidence']
+
+           
+
+            cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
+
+            cv2.putText(frame, f"{name} {conf:.2f}", (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+
+
+        ret, buffer = cv2.imencode('.jpg', frame)
+
+        frame_bytes = buffer.tobytes()
+
+        yield (b'--frame\r\n'
+
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+
+
+    cap.release()
+
+
+
 @app.route('/')
+
 def index():
+
     return render_template_string(HTML_TEMPLATE)
 
-@app.route('/detect', methods=['POST'])
-def detect():
-    try:
-        data = request.get_json()
-        image_data = data['image'].split(',')[1]
-        image_bytes = base64.b64decode(image_data)
-        
-        np_arr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        # แปลงรูปภาพให้เข้ากับโมเดล YOLOv5
-        h, w = img.shape[:2]  # เก็บความสูงและความกว้างของภาพต้นฉบับไว้ใช้แปลงสเกลบ็อกซ์
-        img_resized = cv2.resize(img, (640, 640))
-        img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
-        img_tensor = torch.from_numpy(img_rgb).to(device).float() / 255.0
-        img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0)
 
-        results = model(img_tensor)[0]
-        
-        boxes = []
-        # Non-max suppression ง่ายๆ หรือแกะผลลัพธ์ tensor
-        # (เพื่อให้ง่ายต่อการใช้งานบนเว็บออนไลน์ เราใช้ฟังก์ชันประมวลผลพื้นฐาน)
-        
-        return jsonify({'boxes': boxes})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/video_feed')
+
+def video_feed():
+
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+
+@app.route('/status')
+
+def status():
+
+    global latest_status
+
+    return latest_status
+
 
 
 if __name__ == '__main__':
-    # ดึงค่า PORT ที่ Render กำหนดให้อัตโนมัติ (ถ้าไม่มีให้ใช้ 5000 สำหรับรันในเครื่อง)
-    port = int(os.environ.get("PORT", 5000))
-    # กำหนดให้รันบน host='0.0.0.0' เพื่อให้ภายนอกเข้าถึงเว็บสตรีมได้
-    app.run(host='0.0.0.0', port=port)
+
+    print("กำลังเปิดเว็บเซิร์ฟเวอร์... กรุณาเปิดเบราว์เซอร์ไปที่ http://127.0.0.1:5000")
+
+    app.run(host='0.0.0.0', port=5000, debug=False) 
+
