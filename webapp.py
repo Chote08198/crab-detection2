@@ -1,32 +1,22 @@
-import cv2
-
-import torch
-
 import pathlib
+import sys
 
+# แก้ไขปัญหา PosixPath เฉพาะตอนรันบน Windows เท่านั้น
+if sys.platform == 'win32':
+    temp = pathlib.PosixPath
+    pathlib.PosixPath = pathlib.WindowsPath
+
+import cv2
+import torch
 import numpy as np
-
 from flask import Flask, render_template_string, Response
 
-
-
-# 1. แก้ปัญหา PosixPath สำหรับโมเดลที่เทรนจาก Linux มาใช้บน Windows
-
-temp = pathlib.PosixPath
-
-pathlib.PosixPath = pathlib.WindowsPath
-
-
-
-# 2. โหลดโมเดล YOLOv5 จากโฟลเดอร์ในเครื่อง (แบบออฟไลน์)
-
-model = torch.hub.load('./', 'custom', path='best.pt', source='local')
-
+# โหลดโมเดลแบบออฟไลน์
+model = torch.hub.load('.', 'custom', path='best.pt', source='local')
 model.eval()
 
-
-
 app = Flask(__name__)
+# ... (โค้ดส่วนที่เหลือคงเดิม)
 
 
 
