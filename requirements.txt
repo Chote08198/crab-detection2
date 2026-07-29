@@ -10,3 +10,4 @@ pyyaml
 tqdm
 scipy
 gunicorn
+requests
